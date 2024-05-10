@@ -58,7 +58,7 @@ C:\Tools\AppCompatCacheParser\AppCompatCacheParser.exe --csv .
 
 ![screenshot7](/Blizzard/assets/screenshot7.png)
 
-Once we've opened the file in Timeline Explorer, filterer for `Executed=Yes`, sorted by `Cache Entry Position`, and arranged the columns for better visibility, we find the local PostgreSQL database [has been backed up](https://www.postgresql.org/docs/current/app-pgdump.html), followed by the execution of `######.exe` from `dbadmin`'s home directory.
+Once we've opened the file in Timeline Explorer, filtered for `Executed=Yes`, sorted by `Cache Entry Position`, and arranged the columns for better visibility, we find the local PostgreSQL database [has been backed up](https://www.postgresql.org/docs/current/app-pgdump.html), followed by the execution of `######.exe` from `dbadmin`'s home directory.
 
 ![screenshot8](/Blizzard/assets/screenshot8.png)
 
@@ -123,7 +123,7 @@ foreach ($service in $services) {
     Write-Host "--------------------"
 }
 ```
-The code first retrieves all services that are configure to start automatically when the system starts, then prints relevant information on the screen for me to manually filter. The output only being a couple of dozen lines long, one service immediately stood out while the script was still running
+The code first retrieves all services that are configured to start automatically when the system starts, then prints relevant information on the screen for me to manually filter. The output only being a couple of dozen lines long, one service immediately stood out while the script was still running
 
 ![screenshot14](/Blizzard/assets/screenshot14.png)
 
