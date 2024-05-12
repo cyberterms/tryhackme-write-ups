@@ -133,6 +133,7 @@ Having found `CDPUserSvc_9286x` I now simply loaded the `SYSTEM` registry hive i
 
 Both search results come with identical `Last write` timestamps. That is when the service was created and with that, the answer to the last question of task 1.
 
+
 ## Task 2: Lateral Movement: Backtracking the Pivot Point
 
 >When did the attacker send the malicious email? (format: MM/DD/YYYY HH:MM:SS)
@@ -195,4 +196,79 @@ If there is a direct path from the previously found `SysUpdate` task to the answ
 
 A popular German proverb roughly translates to "Even a blind hen once in a while finds a kernel of corn". With that I conclude the write-up of task 2.
 
-Work in progress...
+
+## Task 3: Initial Access: Discovering the Root Cause
+
+>When did the victim receive the malicious phishing message? (format: MM/DD/YYYY HH:MM:SS)
+
+Since the task description mentions O365, we assume the employee uses Microsoft Teams. Once again applying knowledge from the [Windows Applications Forensics room](https://tryhackme.com/r/room/windowsapplications), we execute a line of PowerShell code to scout potential locations of Teams chat history:
+
+```powershell
+ls C:\Users\ | foreach {ls "C:\Users\$_\AppData\Roaming\Microsoft\Teams" 2>$null | findstr Directory}
+```
+
+![screenshot22](/Blizzard/assets/screenshot22.png)
+
+To be able to read the data, we run the `ms_teams_parser.exe` from `C:\Tools` with the `.leveldb` file found in `a.ramirez`' home directory.
+
+![screenshot23](/Blizzard/assets/screenshot23.png)
+
+The output is a text file in `JSON` format that we could go through using notepad, but to be fancy and for better readability I copied the contents to VS Code on my local machine. The file begins with an array of objects representing contacts in Teams, with fields such as `displayName` and `mri` (something like a user ID). 
+
+![screenshot24](/Blizzard/assets/screenshot24.png)
+
+Following that we find objects for individual messages, containing the `content`, `createdTime`, `originalArrivalTime` (in [UNIX time](https://en.wikipedia.org/wiki/Unix_time)) and `creator`. In order to find the malicious message we could search the file for `https://` and check the 13 results one by one (assuming a phishing message is going to link to something), but we're lucky and the very first message, urging the recipient to click on a link, already seems to be what we're looking for.
+
+![screenshot25](/Blizzard/assets/screenshot25.png)
+
+Either of the redacted timestamps is the answer to our question. The URL from the message, once defanged with square brackets (`hxxps[://]example[[.]]com`), answers question three:
+
+>What is the URL of the malicious phishing link? (format: defanged)
+
+The answer to this question
+
+>What is the display name of the attacker?
+
+is not far either. We copy the `creator` value from the message, search the file for it and find ourselves back at the beginning where contacts are defined.
+
+![screenshot26](/Blizzard/assets/screenshot26.png)
+
+That's all there is to it. Two questions to go.
+
+>What is the title of the phishing website?
+
+>When did the victim first access the phishing website? (format: MM/DD/YYYY HH:MM:SS in UTC)
+
+Since Edge is not installed I'm taking a wild guess that the employee uses Chrome over Internet Explorer. Another line of PowerShell code gives us the the location of `a.ramirez`' browsing data, including history, cache, bookmarks, installed extensions and other valuable information.
+
+```powershell
+ls C:\Users\ | foreach {ls "C:\Users\$_\AppData\Local\Google\Chrome\User Data\Default" 2>$null | findstr Directory}
+```
+
+![screenshot27](/Blizzard/assets/screenshot27.png)
+
+From the desktop we open `hindsight_gui`, which prompts us to visit `http://localhost:8080/` in a browser of our choice.
+
+![screenshot28](/Blizzard/assets/screenshot28.png)
+
+The Hindsight UI asks for the path to the previously established folder containing browsing (meta)data. On the right we can select plugins, but since I am not familiar with them, I leave all on. A crucial but easy to miss setting here is the timezone, which as per task instructions we need to set to UTC. Yes, I did miss that and spent a good ten minutes trying to make sense of the timestamps.
+
+![screenshot29](/Blizzard/assets/screenshot29.png)
+
+Once the data is parsed, 117 URL records among it, we save it to disk as a SQLite database.
+
+![screenshot30](/Blizzard/assets/screenshot30.png)
+
+Now for our last step of the investigation, we open `DB Browser for SQLite` from the desktop and load the database just exported from `Hindsight`. The tool allows manual perusing of rows and columns, but I prefer a simple SQL query.
+
+```sql
+SELECT * FROM timeline WHERE type='url' AND url LIKE '%#############%'
+```
+
+reads all fields of all rows from the `timeline` table, for which the `type` field is equal to `url` and the `url` field contains the phishing URL from the Teams message we found earlier.
+
+![screenshot31](/Blizzard/assets/screenshot31.png)
+
+All question being answered we have reached the end of my first write-up. I hope it was of some help and I made all steps clear enough to reproduce. I might give video walkthroughs a try in the near future. Feedback is very welcome!
+
+
