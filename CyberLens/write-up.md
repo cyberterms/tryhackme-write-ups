@@ -91,7 +91,7 @@ activates the module. After getting more information on the exploit with `show i
 
 >This module exploits a command injection vulnerability in Apache Tika 1.15 - 1.17 on Windows.  A file with the image/jp2 content-type is used to bypass magic bytes checking.  When OCR is specified in the request, parameters can be passed to change the parameters passed at command line to allow for arbitrary JScript to execute. A JScript stub is passed to execute arbitrary code. This module was verified against version 1.15 - 1.17 on Windows 2012. While the CVE and finding show more versions vulnerable, during testing it was determined only > 1.14 was exploitable due to jp2 support being added.
 
-and setting the required options
+and setting the required options (we must use the port Tika is listening on)
 
 ![screenshot8](assets/screenshot8.png)
 
@@ -128,9 +128,9 @@ On our target we find:
 
 ![screenshot11](assets/screenshot11.png)
 
-From here we simply follow the [Windows Privilege Escalation room](https://tryhackme.com/r/room/windowsprivesc20) mentioned earlier.
+The `0x1` is a `1` written in hexadecimal, that's what we needed. From here we simply follow the [Windows Privilege Escalation room](https://tryhackme.com/r/room/windowsprivesc20) mentioned earlier.
 
-The `0x1` is a `1` written in hexadecimal, that's what we needed. We provide `msfvenom` with our attacker machine's IP address and a port for the reverse shell to generate the malicious `MSI` file,
+We provide `msfvenom` with our attacker machine's IP address and a port for the reverse shell to generate the malicious `MSI` file,
 
 ![screenshot12](assets/screenshot12.png)
 
@@ -138,11 +138,11 @@ which we then upload to the target using the shell established by the Tika explo
 
 ![screenshot13](assets/screenshot13.png)
 
-Another instance of `msfconsole` is configured and run to listen for the incoming connection from the reverse shell:
+Another instance of `msfconsole` is configured and run to listen for the incoming connection from the reverse shell payload:
 
 ![screenshot14](assets/screenshot14.png)
 
-Once everything is set up we switch to the target machine, drop into a Windows shell, and execute the payload:
+Once everything is set up we switch to the target machine and execute the payload:
 
 ![screenshot15](assets/screenshot15.png)
 
